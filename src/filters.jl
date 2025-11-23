@@ -1,4 +1,5 @@
 using ColorVectorSpace, Images, ProgressMeter, Colors, Compose
+using Cairo, Fontconfig
 import VideoIO
 
 """

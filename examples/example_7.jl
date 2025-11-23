@@ -1,6 +1,4 @@
-using MembraneRD, Random, Colors, VideoIO, Compose, Images, Printf
-import Cairo, Fontconfig
-
+using MembraneRD, Random, Colors
 
 function build_model3(L)
     G, posx, posy = MembraneRD.gen_hex_lattice(L)
@@ -30,9 +28,6 @@ rng = Random.Xoshiro(seed)
 (; M, mem, cyto, posx, posy) = build_model3(L)
 s = State(M, mem, cyto; rng)
 
-
-#m = Measurer(M; name="test_example_1", Nsave)
-
 times = 0:100:T
 saver = Pusher(Tuple{Float64,State})
 colors = [RGB(m==1,m==2,m==3)/30 for m in 1:nspecies(M)]
@@ -40,8 +35,8 @@ plotter = Plotter(posx, posy; colors)
 displayer = StopWatchFilter(display ∘ plotter; seconds=5.0)
 
 
-stats = TimeFilter(ProgressShower(T), saver, displayer; times)
-@profview run_RD!(s, M, T; stats, rng)
-savevideo("video2.mp4", saver.stack, plotter)
+#stats = TimeFilter(ProgressShower(T), saver, displayer; times)
+#@profview run_RD!(s, M, T; stats, rng)
+#savevideo("video2.mp4", saver.stack, plotter)
 
 
