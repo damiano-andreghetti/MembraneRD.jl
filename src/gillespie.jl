@@ -10,7 +10,7 @@ function build_queues(M)
         ((evdif,m) => Qn[m] * d for (m,d) in M.dif)...,
         ((evatt,m) => q*ka for ((m,_,ka),q) in zip(M.att, Qatt))...,
         ((evdet,m) => Qn[m] * kd for (m,kd) in M.det)...,
-        ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(1:length(M.cat),M.cat, Qcat))...,
+        ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(eachindex(M.cat),M.cat, Qcat))...,
         ((evrea,r) => q*k for ((_,_,k),q) in zip(M.rea, Qrea))...
     )
     Qn, Qcat, Qrea, Qatt, Q
