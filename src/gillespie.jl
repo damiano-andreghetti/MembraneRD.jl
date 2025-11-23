@@ -45,7 +45,7 @@ function run_RD!(state::State, M::Model, T;
 
     t::Float64 = 0.0
     while !isempty(Q)
-        ((ev,m),i),dt = peek(Q; rng)#::Tuple{Tuple{Tuple{Event,Int},Int},Float64}
+        ((ev,m),i),dt = peek(Q; rng)
         t += dt
         t > T && break # reached end time of simulation
         stats(t, state)
