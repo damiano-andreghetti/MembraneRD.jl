@@ -1,14 +1,27 @@
 @enum Event evdif evatt evdet evcat evrea
 
-function run_RD!(state::State, M::Model, T; 
-        stats = (_, _)->nothing, 
-        rng = Random.default_rng())
-
-    N, Nspecies  = nsites(M), nspecies(M)
+function build_queues(M)
+    N = nsites(M)
     Qn = [StaticExponentialQueue(N) for _ in M.species]
     Qcat = [StaticExponentialQueue(N) for _ in M.cat]
     Qrea = [StaticExponentialQueue(N) for _ in M.rea]
     Qatt = [StaticExponentialQueue(N)*0.0 for _ in M.att]
+    Q = NestedQueue(
+        ((evdif,m) => Qn[m] * d for (m,d) in M.dif)...,
+        ((evatt,m) => q*ka for ((m,_,ka),q) in zip(M.att, Qatt))...,
+        ((evdet,m) => Qn[m] * kd for (m,kd) in M.det)...,
+        ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(1:length(M.cat),M.cat, Qcat))...,
+        ((evrea,r) => q*k for ((_,_,k),q) in zip(M.rea, Qrea))...
+    )
+    Qn, Qcat, Qrea, Qatt, Q
+end
+
+function run_RD!(state::State, M::Model, T; 
+        stats = (_, _)->nothing, 
+        rng = Random.default_rng(),
+        queues = build_queues(M))
+
+    Qn, Qcat, Qrea, Qatt, Q = queues
 
     function update(i::Int)
         for ((e,s,_,_,km),q) in zip(M.cat, Qcat)
@@ -21,28 +34,20 @@ function run_RD!(state::State, M::Model, T;
             q.q[i] = state.membrane[i,m1]
             q.f[] = state.cytosol[m]
         end
-        for m in 1:Nspecies
+        for m in 1:nspecies(M)
             Qn[m][i] = state.membrane[i,m]
         end
     end
 
-    foreach(update, 1:N)
-
-    Q = NestedQueue(
-            ((evdif,m) => Qn[m] * d for (m,d) in M.dif)...,
-            ((evatt,m) => q*ka for ((m,_,ka),q) in zip(M.att, Qatt))...,
-            ((evdet,m) => Qn[m] * kd for (m,kd) in M.det)...,
-            ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(Iterators.countfrom(1),M.cat, Qcat))...,
-            ((evrea,r) => q*k for ((_,_,k),q) in zip(M.rea, Qrea))...,
-        )
-
+    foreach(update, 1:nsites(M))
+            
     println("starting simulation, $(length(Q)) events in the queue")
 
     t::Float64 = 0.0
     while !isempty(Q)
-        ((ev,m),i),dt = peek(Q; rng)::Tuple{Tuple{Tuple{Event,Int},Int},Float64}
+        ((ev,m),i),dt = peek(Q; rng)#::Tuple{Tuple{Tuple{Event,Int},Int},Float64}
         t += dt
-        t > T && break # reached end time for simulation
+        t > T && break # reached end time of simulation
         stats(t, state)
         @inbounds if ev == evdif # diffusion
             #arrival is chosen uniformly between its neighbours
