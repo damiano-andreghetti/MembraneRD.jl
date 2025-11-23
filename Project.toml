@@ -4,11 +4,13 @@ version = "1.0.0-DEV"
 authors = ["Damiano Andreghetti, Alfredo Braunstein"]
 
 [deps]
+Cairo = "159f3aea-2a34-519c-b102-8c37f9878175"
 ColorVectorSpace = "c3611d14-8923-5661-9e6a-0046d554d3a4"
 Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
 Compose = "a81c6b42-2e10-5240-aca2-a61377ecd94b"
 ExponentialQueues = "8f3a112f-b142-4e59-ac86-373e9eb88260"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+Fontconfig = "186bb1d3-e1f7-5a2c-a377-96d770f13627"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 ImageMagick = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
@@ -20,11 +22,13 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 VideoIO = "d6d074c3-1acf-5d4c-9a43-ef38773959a2"
 
 [compat]
+Cairo = "1.1.1"
 ColorVectorSpace = "0.10.0"
 Colors = "0.12.11"
 Compose = "0.9.5"
-ExponentialQueues = "1.0.2"
+ExponentialQueues = "1.1.0"
 FileIO = "1.17.1"
+Fontconfig = "0.4.1"
 Graphs = "1"
 ImageMagick = "1.4.2"
 Images = "0.26.2"
