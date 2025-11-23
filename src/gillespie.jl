@@ -56,7 +56,7 @@ function run_RD!(state::State, M::Model, T;
             state.membrane[i,s] -= 1
             state.membrane[i,p] += 1
             update(i)
-        elseif ev == evatt #attachment to membrane
+        elseif ev == evatt # attachment to membrane
             state.cytosol[m] -= 1
             state.membrane[i,m] += 1
             update(i)
