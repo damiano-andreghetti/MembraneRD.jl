@@ -4,14 +4,12 @@ using ExponentialQueues, Random
 
 export Model, State, run_RD!, gen_hex_lattice, gen_rect_lattice,
     nspecies, nsites, @species, @reaction, @catalytic
-export ProgressShower, TimeFilter, StopWatchFilter, Pusher
-export OpenVideo, savevideo, Plotter, raster
-
 
 include("lattice.jl")
 include("model.jl")
 include("state.jl")
 include("gillespie.jl")
-include("filters.jl")
+include("filters/Filters.jl")
 
-end
+
+end # module MembraneRD
