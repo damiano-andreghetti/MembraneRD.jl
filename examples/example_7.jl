@@ -1,13 +1,14 @@
 using MembraneRD, Random, Colors
 
+species = @species A B C EBA ECA EAB EAC
+
 function build_model3(L)
     G, posx, posy = MembraneRD.gen_hex_lattice(L)
     N = length(posx)
-    species = @species A B C EBA ECA EAB EAC
-    cat = (@reaction (1.0,1.0) EBA + B => EBA + A),
-        (@reaction (1.0,1.0) EAB + A => EAB + B),
-        (@reaction (1.0,1.0) EAC + A => EAC + C),
-        (@reaction (1.0,1.0) ECA + C => ECA + A)
+    cat = (@catalytic (1.0,1.0) EBA + B => EBA + A),
+        (@catalytic (1.0,1.0) EAB + A => EAB + B),
+        (@catalytic (1.0,1.0) EAC + A => EAC + C),
+        (@catalytic (1.0,1.0) ECA + C => ECA + A)
     att = (EBA,A,1.0), (EAB,B,1.0), (ECA,A,1.0), (EAC,C,1.0)
     det = (EBA,1.0), (EAB,1.0), (ECA,1.0), (EAC,1.0)
     dif = (A,0.1), (B,0.1), (C,0.1), 
@@ -30,13 +31,13 @@ s = State(M, mem, cyto; rng)
 
 times = 0:100:T
 saver = Pusher(Tuple{Float64,State})
-colors = [RGB(m==1,m==2,m==3)/30 for m in 1:nspecies(M)]
+colors = [RGB(m == A, m == B, m == C) for m in species]/30
 plotter = Plotter(posx, posy; colors)
 displayer = StopWatchFilter(display ∘ plotter; seconds=5.0)
 
 
-#stats = TimeFilter(ProgressShower(T), saver, displayer; times)
-#@profview run_RD!(s, M, T; stats, rng)
+stats = TimeFilter(ProgressShower(T), saver, displayer; times)
+@profview run_RD!(s, M, T; stats, rng)
 #savevideo("video2.mp4", saver.stack, plotter)
 
 

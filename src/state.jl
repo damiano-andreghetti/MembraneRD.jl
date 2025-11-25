@@ -3,7 +3,7 @@ struct State
 	cytosol::Vector{Int}
 end
 
-function State(M::Model, totmembrane::Vector, cytosol::Vector; rng)
+function State(M::Model, totmembrane::Vector, cytosol::Vector; rng = Random.default_rng())
     Nspecies, Nsites = nspecies(M), nsites(M)
     membrane = zeros(Nsites, Nspecies)
     for m in 1:Nspecies

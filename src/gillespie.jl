@@ -5,13 +5,13 @@ function build_queues(M)
     Qn = [StaticExponentialQueue(N) for _ in M.species]
     Qcat = [StaticExponentialQueue(N) for _ in M.cat]
     Qrea = [StaticExponentialQueue(N) for _ in M.rea]
-    Qatt = [StaticExponentialQueue(N)*0.0 for _ in M.att]
+    Qatt = [Qn[m1]*0.0 for (m,m1,ka) in M.att]
     Q = NestedQueue(
         ((evdif,m) => Qn[m] * d for (m,d) in M.dif)...,
-        ((evatt,m) => q*ka for ((m,_,ka),q) in zip(M.att, Qatt))...,
+        ((evatt,m) => q for ((m,_,_),q) in zip(M.att, Qatt))...,
         ((evdet,m) => Qn[m] * kd for (m,kd) in M.det)...,
         ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(eachindex(M.cat),M.cat, Qcat))...,
-        ((evrea,r) => q*k for ((_,_,k),q) in zip(M.rea, Qrea))...
+        ((evrea,r) => q*k for (r,(_,_,k),q) in zip(eachindex(M.rea), M.rea, Qrea))...
     )
     Qn, Qcat, Qrea, Qatt, Q
 end
@@ -30,9 +30,8 @@ function run_RD!(state::State, M::Model, T;
         for ((s,_,_), q) in zip(M.rea, Qrea)
             q[i] = prod(state.membrane[i,m] for m in s)
         end
-        for ((m,m1,_),q) in zip(M.att, Qatt)
-            q.q[i] = state.membrane[i,m1]
-            q.f[] = state.cytosol[m]
+        for ((m,_,ka),q) in zip(M.att, Qatt)
+            q.f[] = state.cytosol[m]*ka
         end
         for m in 1:nspecies(M)
             Qn[m][i] = state.membrane[i,m]
