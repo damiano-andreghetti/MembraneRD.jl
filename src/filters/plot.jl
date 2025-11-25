@@ -29,7 +29,9 @@ A filter to generate a `Compose` image from each state `s`. Use e.g. the
 `display ∘ Plotter(posx, posy; colors)` filter for iterative display, etc.
 """
 function Plotter(posx, posy; colors, Δ=mm)
-    f(_, s::State) = composed(s; posx, posy, colors, Δ)
+    f(s::State) = composed(s; posx, posy, colors, Δ)
+    f(_, s::State) = f(s)
+    f
 end
 
 """
