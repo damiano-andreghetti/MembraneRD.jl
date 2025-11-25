@@ -15,21 +15,19 @@ function build_model3(L)
         (EBA,0.1), (ECA,0.1), (EAB,0.1), (EAC,0.1)
     M = Model(; species, G, cat, att, det, dif, rho_0 = 0.0)
     (; M, mem = [2N,10N,10N,0,0,0,0], 
-        cyto = floor.(Int,[0,0,0,0.5N,0.5N,0.5N,0.5N]), 
+        cyto = floor.(Int,[0,0,0,0.3N,0.3N,0.5N,0.5N]), 
         posx, posy)
 end
 
-T = 2000.0
-Nsave = 10
-L = 50
+T = 20000.0
+L = 150
 
 #for reproducibility
-seed = 22
-rng = Random.Xoshiro(seed)
+rng = Random.Xoshiro(22)
 (; M, mem, cyto, posx, posy) = build_model3(L)
 s = State(M, mem, cyto; rng)
 
-times = 0:100:T
+times = 0:T/200:T
 saver = Pusher(Tuple{Float64,State})
 colors = [RGB(m == A, m == B, m == C) for m in species]/30
 plotter = Plotter(posx, posy; colors)
@@ -37,7 +35,7 @@ displayer = StopWatchFilter(display ∘ plotter; seconds=5.0)
 
 
 stats = TimeFilter(ProgressShower(T), saver, displayer; times)
-@profview run_RD!(s, M, T; stats, rng)
+@time run_RD!(s, M, T; stats, rng)
 #savevideo("video2.mp4", saver.stack, plotter)
 
 
