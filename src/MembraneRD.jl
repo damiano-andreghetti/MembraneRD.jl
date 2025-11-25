@@ -3,7 +3,7 @@ module MembraneRD
 using ExponentialQueues, Random
 
 export Model, State, run_RD!, gen_hex_lattice, gen_rect_lattice,
-    nspecies, nsites, @species, @reaction
+    nspecies, nsites, @species, @reaction, @catalytic
 export ProgressShower, TimeFilter, StopWatchFilter, Pusher
 export OpenVideo, savevideo, Plotter, raster
 
