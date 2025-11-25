@@ -1,123 +1,59 @@
-using MembraneRD, ExponentialQueues
-using Compose, MembraneRD.Colors
-import MembraneRD: hexagon
-using MembraneRD.Graphs
+using MembraneRD, Random, Colors
 
+species = @species A B EA EB
 
-Base.@kwdef struct ModelN{G, S, T, L1, L2, L3, L4}
-    species::S
-    g::G
-    rea::L1
-    att::L2
-    det::L3
-    dif::L4
-    rho_0::T
+struct Measure
+	time::Float64
+    phi_av::Float64
+    bc::Float64
+    cytoEA::Float64
+    cytoEB::Float64
+    rho::Float64
 end
 
-nspecies(M::ModelN) = length(M.species)
-
-Base.length(M::ModelN) = nv(M.g)
-
-struct StateN
-	membrane::Matrix{Int}
-	cytosol::Vector{Int}
+function Measure(M::Model, s::State, t)
+    Nc = nsites(M)
+    #calculate phi at each cell (normalized, goes from -1, to 1)
+    ϕ(i) = (s.membrane[i,B] - s.membrane[i,A])/(s.membrane[i,A] + s.membrane[i,B] + 1e-10)
+    @views totA, totB = sum(s.membrane[:,A]), sum(s.membrane[:,B])
+    #measure phi
+    ϕav = (totB - totA) / (totA + totB)
+    #in some denominators I added + 10^-10 in order to avoid NaNs
+    m2 = sum((ϕ(i)-ϕav)^2 for i in 1:Nc) / Nc
+    m4 = sum((ϕ(i)-ϕav)^4 for i in 1:Nc) / Nc
+    #measure Binder cumulant
+    bc = 1 - (m4 / (m2 ^ 2 + 1e-10)) / 3			
+    #the following is to check for convergence of rho to 1
+    rho = M.rho_0 * ((M.det[1][2] / M.att[1][3]) + totA) / ((M.det[2][2] / M.att[2][3]) + totB)
+    Measure(t, ϕav, bc, s.cytosol[EA], s.cytosol[EB], rho)
 end
 
-function StateN(M::ModelN, totmembrane::Vector, cytosol::Vector; rng)
-    Nspecies = nspecies(M)
-    membrane = zeros(nv(M.g), Nspecies)
-    for m in axes(membrane, 2)
-        for _ in 1:totmembrane[m]
-            membrane[rand(rng, axes(membrane,1)), m] += 1
+#make measures here
+function Measurer(M::Model; name, Nsave)
+	measures = Measure[]
+    next::Int = 1
+    function take_measure(t, s)
+        m = Measure(M, s, t)
+        push!(measures, m)
+        if next % Nsave ==0
+            println("T = $t and <ϕ>/c = $(M.ϕav)")
+            println("Binder cumulant: $(M.bc)")
+            save("$name/config_T=$(round(t,digits=3)).jld",compress=true, "state", s)
+            save("$name/measures.jld",compress=true, "measures", measures)
         end
+        next += 1
     end
-    StateN(membrane, cytosol)
 end
-
-
-
-function run_RDN!(state::StateN, M::ModelN, T; 
-        stats = (_, _)->nothing, 
-        rng = Random.default_rng())
-
-    N = length(M)
-    Nspecies = nspecies(M)
-    Qn = [ExponentialQueue(N) for _ in M.species]
-    Qcat = [ExponentialQueue(N) for _ in M.rea]
-    Qatt = [ExponentialQueue(N)*0.0 for _ in M.att]
-    
-    function update(i::Int)
-        for ((e,s,_,_,km),q) in zip(M.rea, Qcat)
-            q[i] = state.membrane[i,e] * state.membrane[i,s] / (state.membrane[i,s] + km)
-        end
-        for ((m,m1,_),q) in zip(M.att, Qatt)
-            q.q[i] = state.membrane[i,m1]
-            q.f[] = state.cytosol[m]
-        end
-        for m in 1:Nspecies
-            Qn[m][i] = state.membrane[i,m]
-        end
-    end
-
-
-    foreach(update, 1:length(M))
-
-    #arrival is chosen uniformly between its neighbours
-    rand_neighbor(i) = rand(rng, neighbors(M.g, i))
-
-    Q = NestedQueue(
-            ((:dif,m) => Qn[m] * d for (m,d) in M.dif)...,
-            ((:att,m) => q*ka for ((m,_,ka),q) in zip(M.att, Qatt))...,
-            ((:det,m) => Qn[m] * kd for (m,kd) in M.det)...,
-            ((:cat,(s,p)) => q*kc for ((_,s,p,kc,_),q) in zip(M.rea, Qcat))...,
-        )
-
-    println("starting simulation, $(length(Q)) events in the queue")
-
-    t::Float64 = 0.0
-    while !isempty(Q)
-        ((ev, m::Union{Int,Tuple{Int,Int}}), i), dt = peek(Q; rng)
-        t += dt
-        t > T && break # reached end time for simulation
-        stats(t, state)
-        @inbounds if ev === :dif # diffusion
-            j = rand_neighbor(i)
-            state.membrane[i,m] -= 1
-            state.membrane[j,m] += 1
-            update(i)
-            update(j)
-        elseif ev === :cat # reaction
-            s, p = m
-            state.membrane[i,s] -= 1
-            state.membrane[i,p] += 1
-            update(i)
-        elseif ev === :att #attachment to membrane
-            state.cytosol[m] -= 1
-            state.membrane[i,m] += 1
-            update(i)
-        elseif ev === :det #detachment from membrane
-            state.membrane[i,m] -= 1
-            state.cytosol[m] += 1
-            update(i)
-        end
-    end
-	stats(T, state)
-end
-	
-using ProgressMeter, JLD, Random
-
-
 
 function build_model(L)
-    g,posx,posy = MembraneRD.gen_hex_lattice(L)
+    G,posx,posy = MembraneRD.gen_hex_lattice(L)
     N = length(posx)
     unit_length = 1.0
     theta = 0.2126944621086619 #Stot/V
     Ac = unit_length^2 #area associated to each cell, set unit lengthscale
     Stot = N*Ac #area of each cell is assumed to be 1, setting unit lengthscale
     V = Stot/theta
-    d_timescale = 0.01 #this sets unit timescale
-    dA,dB,dEA,dEB = Iterators.repeated(d_timescale)
+    dA = dB = dEA = dEB = 0.01 #this sets unit timescale
     #rates in the theory (do not correspond excatly to those used in the simulations), some slight dimensional changes are needed
     kAa_th = 1.0; kAd_th = 1.0*kAa_th; kAc_th = 1.0
     kBa_th = 1.0; kBd_th = 1.0*kBa_th; kBc_th = 1.3*kAc_th
@@ -127,59 +63,44 @@ function build_model(L)
     kAd = kAd_th; kBa = kBa_th/V; kBd = kBd_th
     KMMA = KMMA_th*Ac; KMMB = KMMB_th*Ac
 
-    species = ("A","B","EA","EB")
-    A,B,EA,EB = Iterators.countfrom(1)
-    rea = ((EA,B,A,kAc,KMMA), (EB,A,B,kBc,KMMB))
+
+    cat = ((@catalytic (kAc,KMMA) EA+B => EA+A), 
+           (@catalytic (kBc,KMMB) EB+A => EB+B))
     att = ((EA,A,kAa), (EB,B,kBa))
     det = ((EA,kAd),(EB,kBd))
     dif = ((A,dA),(B,dB),(EA,dEA),(EB,dEB))
 
-    M = ModelN(; species, g, rea, att, det, dif, rho_0 = 0.0)
+    M = Model(; species, G, cat, att, det, dif, rho_0 = 0.0)
 
     totmol = N * 10
     totA, totB = floor(Int, totmol/2), floor(Int, totmol/2)
     totEA, totEB = floor(Int, 0.1*N), floor(Int, 0.1*N)
-    #memEA = floor(Int, totEA*(theta/(kAd_th/kAa_th))*(totA/Stot)/(1+theta/(kAd_th/kAa_th)*totA/Stot))
-    #memEB = floor(Int, totEB*(theta/(kBd_th/kBa_th))*(totB/Stot)/(1+theta/(kBd_th/kBa_th)*totB/Stot))
-    memEA, memEB = 0.0, 0.0
+    memEA = floor(Int, totEA*(theta/(kAd_th/kAa_th))*(totA/Stot)/(1+theta/(kAd_th/kAa_th)*totA/Stot))
+    memEB = floor(Int, totEB*(theta/(kBd_th/kBa_th))*(totB/Stot)/(1+theta/(kBd_th/kBa_th)*totB/Stot))
     cytoEA, cytoEB = totEA - memEA, totEB - memEB
     (; M, mem = [totA, totB, memEA, memEB], cyto = [0.0, 0.0, cytoEA, cytoEB], posx, posy)
 end
 
-
-function build_model3(L)
-    g,posx,posy = MembraneRD.gen_hex_lattice(L)
-    N = length(posx)
-    species = ("A","B","EA","EB","C","EC")
-    A,B,C,EA,EB,EC = Iterators.countfrom(1)
-    rea = ((EA,B,A,1.0,1.0), (EB,A,B,1.0,1.0),(EC,A,C,1.0,1.0),(EA,C,A,1.0,1.0))
-    att = ((EA,A,1.0), (EB,B,1.0), (EC,C,1.0))
-    det = ((EA,1.0),(EB,1.0),(EC,1.0))
-    dif = ((A,1.0),(B,1.0),(EA,1.0),(EB,1.0),(C,1.0),(EC,1.0))
-    M = ModelN(; species, g, rea, att, det, dif, rho_0 = 0.0)
-    (; M, mem = [10*N, 10*N, 10*N, 0, 0, 0], 
-        cyto = [fill(0,3); fill(floor(Int, 0.5*N),3)], 
-        posx, posy)
-end
-
-
-
-
-
-T = 2000.0
-Tmeas = 10.0
+T = 20000.0
+Tmeas = 100.0
 Nsave = 10
-L = 70
+L = 80
 
 #for reproducibility
 seed = 22
 rng = Random.Xoshiro(seed)
-(; M, mem, cyto, posx, posy) = build_model3(L)
-s = StateN(M.g, mem, cyto; rng)
+(; M, mem, cyto, posx, posy) = build_model(L)
+s = State(M, mem, cyto; rng)
 
-p = ProgressShower(T)
-#m = Measurer(M; name="test_example_1", Nsave)
-pl = TimeFilter(PlotterN(posx, posy); times=Tmeas:50:T)
-stats = TimeFilter(p, pl; times=Tmeas:Tmeas:T)
+measurer = 
 
-@time run_RDN!(s, M, T; stats, rng) 
+times = 0:100:T
+saver = Pusher(Tuple{Float64,State})
+colors = [color("yellow"),color("blue"),color("black"),color("black")]/30
+stats = TimeFilter(ProgressShower(T), 
+#   Measurer(M; name="test_example_1", Nsave),
+#   StopWatchFilter(display ∘ Plotter(posx, posy; colors); seconds=1.0),
+    saver; times)
+@time run_RD!(s, M, T; stats, rng)
+
+#Measure.(Ref(M), last.(saver.stack), first.(saver.stack))[end]
