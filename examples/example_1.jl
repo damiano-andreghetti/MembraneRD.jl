@@ -92,14 +92,12 @@ rng = Random.Xoshiro(seed)
 (; M, mem, cyto, posx, posy) = build_model(L)
 s = State(M, mem, cyto; rng)
 
-measurer = 
-
 times = 0:100:T
 saver = Pusher(Tuple{Float64,State})
 colors = [color("yellow"),color("blue"),color("black"),color("black")]/30
 stats = TimeFilter(ProgressShower(T), 
 #   Measurer(M; name="test_example_1", Nsave),
-    StopWatchFilter(display ∘ Plotter(posx, posy; colors); seconds=1.0),
+#   StopWatchFilter(display ∘ Plotter(posx, posy; colors); seconds=1.0),
     saver; times)
 @time run_RD!(s, M, T; stats, rng)
 
