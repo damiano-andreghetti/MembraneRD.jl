@@ -1,49 +1,6 @@
-using MembraneRD, Random, Colors, MembraneRD.Filters
+using MembraneRD, Random, Colors, MembraneRD.Filters, JLD2, Sixel
 
 species = @species A B EA EB
-
-struct Measure
-	time::Float64
-    phi_av::Float64
-    bc::Float64
-    cytoEA::Float64
-    cytoEB::Float64
-    rho::Float64
-end
-
-function Measure(M::Model, s::State, t)
-    Nc = nsites(M)
-    #calculate phi at each cell (normalized, goes from -1, to 1)
-    ϕ(i) = (s.membrane[i,B] - s.membrane[i,A])/(s.membrane[i,A] + s.membrane[i,B] + 1e-10)
-    @views totA, totB = sum(s.membrane[:,A]), sum(s.membrane[:,B])
-    #measure phi
-    ϕav = (totB - totA) / (totA + totB)
-    #in some denominators I added + 10^-10 in order to avoid NaNs
-    m2 = sum((ϕ(i)-ϕav)^2 for i in 1:Nc) / Nc
-    m4 = sum((ϕ(i)-ϕav)^4 for i in 1:Nc) / Nc
-    #measure Binder cumulant
-    bc = 1 - (m4 / (m2 ^ 2 + 1e-10)) / 3			
-    #the following is to check for convergence of rho to 1
-    rho = M.rho_0 * ((M.det[1][2] / M.att[1][3]) + totA) / ((M.det[2][2] / M.att[2][3]) + totB)
-    Measure(t, ϕav, bc, s.cytosol[EA], s.cytosol[EB], rho)
-end
-
-#make measures here
-function Measurer(M::Model; name, Nsave)
-	measures = Measure[]
-    next::Int = 1
-    function take_measure(t, s)
-        m = Measure(M, s, t)
-        push!(measures, m)
-        if next % Nsave ==0
-            println("T = $t and <ϕ>/c = $(M.ϕav)")
-            println("Binder cumulant: $(M.bc)")
-            save("$name/config_T=$(round(t,digits=3)).jld",compress=true, "state", s)
-            save("$name/measures.jld",compress=true, "measures", measures)
-        end
-        next += 1
-    end
-end
 
 function build_model(L)
     G,posx,posy = MembraneRD.gen_hex_lattice(L)
@@ -81,25 +38,76 @@ function build_model(L)
     (; M, mem = [totA, totB, memEA, memEB], cyto = [0.0, 0.0, cytoEA, cytoEB], posx, posy)
 end
 
-T = 20000.0
-Tmeas = 100.0
-Nsave = 10
-L = 80
 
-#for reproducibility
-seed = 22
-rng = Random.Xoshiro(seed)
+
+# structure to hold measures
+struct Measure
+	time::Float64
+    phi_av::Float64
+    bc::Float64
+    cytoEA::Float64
+    cytoEB::Float64
+    rho::Float64
+    function Measure(M::Model, s::State, t)
+        Nc = nsites(M)
+        #calculate phi at each cell (normalized, goes from -1, to 1)
+        ϕ(i) = (s.membrane[i,B] - s.membrane[i,A])/(s.membrane[i,A] + s.membrane[i,B] + 1e-10)
+        @views totA, totB = sum(s.membrane[:,A]), sum(s.membrane[:,B])
+        #measure phi
+        ϕav = (totB - totA) / (totA + totB)
+        #in some denominators I added + 10^-10 in order to avoid NaNs
+        m2 = sum((ϕ(i)-ϕav)^2 for i in 1:Nc) / Nc
+        m4 = sum((ϕ(i)-ϕav)^4 for i in 1:Nc) / Nc
+        #measure Binder cumulant
+        bc = 1 - (m4 / (m2 ^ 2 + 1e-10)) / 3			
+        #the following is to check for convergence of rho to 1
+        rho = M.rho_0 * ((M.det[1][2] / M.att[1][3]) + totA) / ((M.det[2][2] / M.att[2][3]) + totB)
+        new(t, ϕav, bc, s.cytosol[EA], s.cytosol[EB], rho)
+    end
+end
+
+# save measures here
+function Saver(M::Model; name)
+    function save_measure(t, s)
+        m = Measure(M, s, t)
+        println()
+        println("T = $t and <ϕ>/c = $(m.phi_av)")
+        println("Binder cumulant: $(m.bc)")
+        save("$name/config_T=$(round(t,digits=3)).jld",compress=true, "state", s)
+        save("$name/measure_T=$(round(t,digits=3)).jld",compress=true, "measure", m)
+    end
+end
+
+
+
+T = 20000.0
+L = 100
+
+# for reproducibility
+rng = Random.Xoshiro(22)
 (; M, mem, cyto, posx, posy) = build_model(L)
 s = State(M, mem, cyto; rng)
 
-times = 0:100:T
-saver = Pusher(Tuple{Float64,State})
 colors = [color("yellow"),color("blue"),color("black"),color("black")]/30
+# to push measures into a stack, access them with measurer.stack
+measurer = Pusher((t,s)->Measure(M,s,t), Measure)
+# to push states into a stack, access them with states.stack
+states = Pusher((t,s)->deepcopy(s), State)
+# to save every 500 time units into a file (and show a summary)
+saver = TimeFilter(Saver(M; name="test_example_1"); times = 0:500:T)
+# to display the membrane once every 1s if the output is graphics-capable, e.g. in VSCode.
+displayer = StopWatchFilter(display ∘ Plotter(posx, posy; colors); seconds=1.0)
+# For a text-only terminal, look at Sixel and use something like: displayer = StopWatchFilter((x->(println(); println(sixel_encode(x)))) ∘ raster ∘ Plotter(posx, posy; colors); seconds=1.0)
+
+# Put everything together
 stats = TimeFilter(ProgressShower(T), 
-#   Measurer(M; name="test_example_1", Nsave),
-#   StopWatchFilter(display ∘ Plotter(posx, posy; colors); seconds=1.0),
-    saver; times)
+    measurer,
+    states,
+#    displayer,
+#    saver, 
+    ; times = 0:100:T)
 @time run_RD!(s, M, T; stats, rng)
 
-# savevideo("video4.mp4", Iterators.map(raster∘plotter, saver.stack))
-# measures = Measure.(Ref(M), last.(saver.stack), first.(saver.stack))
+
+# to generate video afterwards, use this:
+# savevideo("video4.mp4", Iterators.map(raster∘Plotter(posx, posy; colors), states.stack))
