@@ -28,7 +28,7 @@ rng = Random.Xoshiro(22)
 s = State(M, mem, cyto; rng)
 
 times = 0:T/200:T
-saver = Pusher(Tuple{Float64,State})
+saver = Pusher((t,s)->(t,deepcopy(s)), Tuple{Float64,State})
 colors = [RGB(m == A, m == B, m == C) for m in species]/30
 plotter = Plotter(posx, posy; colors)
 displayer = StopWatchFilter(display ∘ plotter; seconds=5.0)

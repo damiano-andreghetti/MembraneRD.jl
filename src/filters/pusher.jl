@@ -1,8 +1,8 @@
 """
 Pushes something into a vector
 """
-function Pusher(::Type{T} = Any) where T
+function Pusher(f, ::Type{T} = Any) where T
     stack = T[]
-    pusher(x...) = push!(stack, deepcopy(x))
+    pusher(xs...) = push!(stack, f(xs...))
 end
 
