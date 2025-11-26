@@ -1,4 +1,4 @@
-using MembraneRD, Random, Colors, MembraneRD.Filters, JLD2, Sixel
+using MembraneRD, Random, Colors, MembraneRD.Filters, JLD2
 
 species = @species A B EA EB
 
@@ -29,6 +29,7 @@ function build_model(L)
 
     M = Model(; species, G, cat, att, det, dif, rho_0 = 0.0)
 
+    # create initial state distribution
     totmol = N * 10
     totA, totB = floor(Int, totmol/2), floor(Int, totmol/2)
     totEA, totEB = floor(Int, 0.1*N), floor(Int, 0.1*N)
@@ -66,7 +67,7 @@ struct Measure
     end
 end
 
-# save measures here
+# save measures and print summary
 function Saver(M::Model; name)
     function save_measure(t, s)
         m = Measure(M, s, t)
@@ -89,25 +90,27 @@ rng = Random.Xoshiro(22)
 s = State(M, mem, cyto; rng)
 
 colors = [color("yellow"),color("blue"),color("black"),color("black")]/30
-# to push measures into a stack, access them with measurer.stack
+# push measures into a stack, access them with measurer.stack
 measurer = Pusher((t,s)->Measure(M,s,t), Measure)
-# to push states into a stack, access them with states.stack
+# push states into a stack, access them with states.stack
 states = Pusher((t,s)->deepcopy(s), State)
-# to save every 500 time units into a file (and show a summary)
+# save every 500 time units into a file (and show a summary)
 saver = TimeFilter(Saver(M; name="test_example_1"); times = 0:500:T)
-# to display the membrane once every 1s if the output is graphics-capable, e.g. in VSCode.
+# display the membrane once every 1s if the output is graphics-capable, e.g. in VSCode.
 displayer = StopWatchFilter(display ∘ Plotter(posx, posy; colors); seconds=1.0)
-# For a text-only terminal, look at Sixel and use something like: displayer = StopWatchFilter((x->(println(); println(sixel_encode(x)))) ∘ raster ∘ Plotter(posx, posy; colors); seconds=1.0)
+# for a text-only terminal, look at Sixel and use something like: displayer = StopWatchFilter((x->(println(); println(sixel_encode(x)))) ∘ raster ∘ Plotter(posx, posy; colors); seconds=1.0)
 
-# Put everything together
+# put everything together
 stats = TimeFilter(ProgressShower(T), 
     measurer,
     states,
 #    displayer,
 #    saver, 
     ; times = 0:100:T)
+
+# run simulation
 @time run_RD!(s, M, T; stats, rng)
 
 
 # to generate video afterwards, use this:
-# savevideo("video4.mp4", Iterators.map(raster∘Plotter(posx, posy; colors), states.stack))
+# savevideo("video.mp4", Iterators.map(raster∘Plotter(posx, posy; colors), states.stack))
