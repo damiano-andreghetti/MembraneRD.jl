@@ -101,4 +101,5 @@ stats = TimeFilter(ProgressShower(T),
     saver; times)
 @time run_RD!(s, M, T; stats, rng)
 
-#Measure.(Ref(M), last.(saver.stack), first.(saver.stack))[end]
+# savevideo("video4.mp4", Iterators.map(raster∘plotter, saver.stack))
+# measures = Measure.(Ref(M), last.(saver.stack), first.(saver.stack))
