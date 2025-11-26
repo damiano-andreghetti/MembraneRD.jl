@@ -31,6 +31,7 @@ A filter to generate a `Compose` image from each state `s`. Use e.g. the
 function Plotter(posx, posy; colors, Δ=mm)
     f(s::State) = composed(s; posx, posy, colors, Δ)
     f(_, s::State) = f(s)
+    f((_,s)::Tuple{Float64,State}) = f(s)
     f
 end
 
