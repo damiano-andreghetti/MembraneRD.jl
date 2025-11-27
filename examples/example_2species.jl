@@ -3,8 +3,8 @@ using MembraneRD, Random, Colors, MembraneRD.Filters, JLD2
 species = @species A B EA EB
 
 function build_model(L)
-    G,posx,posy = MembraneRD.gen_hex_lattice(L)
-    N = length(posx)
+    G,layout = MembraneRD.gen_hex_lattice(L)
+    N = nv(G)
     unit_length = 1.0
     theta = 0.2126944621086619 #Stot/V
     Ac = unit_length^2 #area associated to each cell, set unit lengthscale
@@ -36,7 +36,7 @@ function build_model(L)
     memEA = floor(Int, totEA*(theta/(kAd_th/kAa_th))*(totA/Stot)/(1+theta/(kAd_th/kAa_th)*totA/Stot))
     memEB = floor(Int, totEB*(theta/(kBd_th/kBa_th))*(totB/Stot)/(1+theta/(kBd_th/kBa_th)*totB/Stot))
     cytoEA, cytoEB = totEA - memEA, totEB - memEB
-    (; M, mem = [totA, totB, memEA, memEB], cyto = [0.0, 0.0, cytoEA, cytoEB], posx, posy)
+    (; M, mem = [totA, totB, memEA, memEB], cyto = [0.0, 0.0, cytoEA, cytoEB], layout)
 end
 
 
@@ -86,7 +86,7 @@ L = 100
 
 # for reproducibility
 rng = Random.Xoshiro(22)
-(; M, mem, cyto, posx, posy) = build_model(L)
+(; M, mem, cyto, layout) = build_model(L)
 s = State(M, mem, cyto; rng)
 
 colors = [color("yellow"),color("blue"),color("black"),color("black")]/30
@@ -97,14 +97,14 @@ states = Pusher((t,s)->deepcopy(s), State)
 # save every 500 time units into a file (and show a summary)
 saver = TimeFilter(Saver(M; name="test_example_1"); times = 0:500:T)
 # display the membrane once every 1s if the output is graphics-capable, e.g. in VSCode.
-displayer = StopWatchFilter(display ∘ Plotter(posx, posy; colors); seconds=1.0)
-# for a text-only terminal, look at Sixel and use something like: displayer = StopWatchFilter((x->(println(); println(sixel_encode(x)))) ∘ raster ∘ Plotter(posx, posy; colors); seconds=1.0)
+displayer = StopWatchFilter(display ∘ Plotter(layout; colors); seconds=2)
+# for a text-only terminal, look at Sixel and use something like: displayer = StopWatchFilter((x->(println(); println(sixel_encode(x)))) ∘ raster ∘ Plotter(layout; colors); seconds=1.0)
 
 # put everything together
 stats = TimeFilter(ProgressShower(T), 
     measurer,
     states,
-#    displayer,
+    displayer,
 #    saver, 
     ; times = 0:100:T)
 
@@ -113,4 +113,4 @@ stats = TimeFilter(ProgressShower(T),
 
 
 # to generate video afterwards, use this:
-# savevideo("video.mp4", Iterators.map(raster∘Plotter(posx, posy; colors), states.stack))
+# savevideo("video.mp4", Iterators.map(raster∘Plotter(layout; colors), states.stack))

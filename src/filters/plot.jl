@@ -7,19 +7,31 @@ function hexagon(x, y, r)
                     for i in eachindex(x,y)])
 end
 
-"""
-`composed(s::State; posx, posy, colors, Δ)`
+square(x, y, r) = rectangle(x.-r,y.-r,fill(2r,length(x)),fill(2r,length(x)))
 
-Generates a `Compose` image of an hexagonal grid from `s::State` 
 """
-function composed(s::State; posx, posy, colors, Δ)
+`composed(s::State; layout, colors, Δ)`
+
+Generates a `Compose` image of a lattice of a given `layout` from `s::State` 
+"""
+function composed(s::State; layout, colors, Δ)
+    (cellshape, posx, posy) = layout
     X, Y = Δ .* posx, Δ .* posy
     (x0,x1),(y0,y1) = extrema(X), extrema(Y)
     set_default_graphic_size(x1-x0+3Δ, y1-y0+3Δ)
-    compose(context(), 
-        hexagon(X, Y, 1Δ),
-        fill(s.membrane * colors)
-    ) 
+    if cellshape == :hexagon
+        compose(context(), 
+            hexagon(X,Y,Δ),
+            fill(s.membrane * colors)
+        )
+    elseif cellshape == :square
+        compose(context(),
+            square(X,Y,Δ),
+            fill(s.membrane * colors)
+        )
+    else
+        throw(ArgumentError("Unrecognized shape $cellshape"))
+    end 
 end
 
 """
@@ -28,8 +40,8 @@ end
 A filter to generate a `Compose` image from each state `s`. Use e.g. the
 `display ∘ Plotter(posx, posy; colors)` filter for iterative display, etc.
 """
-function Plotter(posx, posy; colors, Δ=mm)
-    f(s::State) = composed(s; posx, posy, colors, Δ)
+function Plotter(layout; colors, Δ=mm)
+    f(s::State) = composed(s; layout, colors, Δ)
     f(_, s::State) = f(s)
     f((_,s)::Tuple{Float64,State}) = f(s)
     f

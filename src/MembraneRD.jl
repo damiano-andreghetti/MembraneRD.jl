@@ -5,6 +5,8 @@ using ExponentialQueues, Random
 export Model, State, run_RD!, gen_hex_lattice, gen_rect_lattice,
     nspecies, nsites, @species, @reaction, @catalytic
 
+export nv
+
 include("lattice.jl")
 include("model.jl")
 include("state.jl")
