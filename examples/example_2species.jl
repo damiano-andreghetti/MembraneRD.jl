@@ -111,7 +111,7 @@ stats = TimeFilter(ProgressShower(T),
     ; times = 0:100:T)
 
 # run simulation
-@profview run_RD!(s, M, T; stats, rng)
+@time run_RD!(s, M, T; stats, rng)
 
 
 # to generate video afterwards, use this:
