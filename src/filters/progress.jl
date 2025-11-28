@@ -9,5 +9,5 @@ A filter to show progress
 """
 function ProgressShower(T; kwds...)
     p = Progress(100; kwds...)
-    stat(t, _) = update!(p, floor(Int, 100*t/T))
+    stat(t, _...) = update!(p, floor(Int, 100*t/T))
 end

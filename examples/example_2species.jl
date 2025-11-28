@@ -19,6 +19,7 @@ function build_model(L)
     kAc = kAc_th; kBc = kBc_th; kAa = kAa_th/V
     kAd = kAd_th; kBa = kBa_th/V; kBd = kBd_th
     KMMA = KMMA_th*Ac; KMMB = KMMB_th*Ac
+    kAb, kBb = 1e-4, 1e-4
 
 
     cat = ((@catalytic (kAc,KMMA) EA+B => EA+A), 
@@ -26,8 +27,9 @@ function build_model(L)
     att = ((EA,A,kAa), (EB,B,kBa))
     det = ((EA,kAd),(EB,kBd))
     dif = ((A,dA),(B,dB),(EA,dEA),(EB,dEB))
+    rea = ((A,),(B,),kAb), ((B,),(A,),kBb)
 
-    M = Model(; species, G, cat, att, det, dif, rho_0 = 0.0)
+    M = Model(; species, G, cat, att, det, dif, rea, rho_0 = 0.0)
 
     # create initial state distribution
     totmol = N * 10
@@ -69,7 +71,7 @@ end
 
 # save measures and print summary
 function Saver(M::Model; name)
-    function save_measure(t, s)
+    function save_measure(t, s, _...)
         m = Measure(M, s, t)
         println()
         println("T = $t and <ϕ>/c = $(m.phi_av)")
@@ -89,11 +91,11 @@ rng = Random.Xoshiro(22)
 (; M, mem, cyto, layout) = build_model(L)
 s = State(M, mem, cyto; rng)
 
-colors = [color("yellow"),color("blue"),color("black"),color("black")]/30
+colors = color.(["yellow","blue","black","black"])/30
 # push measures into a stack, access them with measurer.stack
-measurer = Pusher((t,s)->Measure(M,s,t), Measure)
+measurer = Pusher((t,s,_...)->Measure(M,s,t), Measure)
 # push states into a stack, access them with states.stack
-states = Pusher((t,s)->deepcopy(s), State)
+states = Pusher((t,s,_...)->deepcopy(s), State)
 # save every 500 time units into a file (and show a summary)
 saver = TimeFilter(Saver(M; name="test_example_1"); times = 0:500:T)
 # display the membrane once every 1s if the output is graphics-capable, e.g. in VSCode.
@@ -102,14 +104,14 @@ displayer = StopWatchFilter(display ∘ Plotter(layout; colors); seconds=2)
 
 # put everything together
 stats = TimeFilter(ProgressShower(T), 
-    measurer,
+#    measurer,
     states,
     displayer,
 #    saver, 
     ; times = 0:100:T)
 
 # run simulation
-@time run_RD!(s, M, T; stats, rng)
+@profview run_RD!(s, M, T; stats, rng)
 
 
 # to generate video afterwards, use this:

@@ -1,4 +1,4 @@
-@enum Event evdif evatt evdet evcat evrea
+@enum Event evdif evatt evdet evcat evrea evend
 
 function build_queues(M)
     N = nsites(M)
@@ -47,7 +47,7 @@ function run_RD!(state::State, M::Model, T;
         ((ev,m),i),dt = peek(Q; rng)
         t += dt
         t > T && break # reached end time of simulation
-        stats(t, state)
+        stats(t, state, ev, m, i)
         @inbounds if ev == evdif # diffusion
             #arrival is chosen uniformly between its neighbours
             j = rand(rng, neighbors(M.G, i))
@@ -79,5 +79,5 @@ function run_RD!(state::State, M::Model, T;
             update(i)
         end
     end
-    stats(T, state)
+    stats(T, state, evend, 0, 0)
 end
