@@ -16,9 +16,9 @@ function build_model(L)
     kBa_th = 1.0; kBd_th = 1.0*kBa_th; kBc_th = 1.3*kAc_th
     KMMA_th = 1.0; KMMB_th = 1.0
     #rates to implement
-    kAc = kAc_th; kBc = kBc_th; kAa = kAa_th/V
-    kAd = kAd_th; kBa = kBa_th/V; kBd = kBd_th
-    KMMA = KMMA_th*Ac; KMMB = KMMB_th*Ac
+    kAc, kAd, kAa = kAc_th, kAd_th, kAa_th / V
+    kBc, kBd, kBa = kBc_th, kBd_th, kBa_th / V
+    KMMA, KMMB = KMMA_th*Ac, KMMB_th*Ac
     kAb, kBb = 1e-4, 1e-4
 
 
