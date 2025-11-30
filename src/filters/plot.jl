@@ -1,4 +1,5 @@
-using ColorVectorSpace, Images, Colors, Compose
+using ColorVectorSpace, Images, Colors
+import Compose: polygon, context, fill, mm
 import Cairo, Fontconfig
 
 function hexagon(x, y, r)

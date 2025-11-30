@@ -32,9 +32,9 @@ function build_model(L)
     M = Model(; species, G, cat, att, det, dif, rea, rho_0 = 0.0)
 
     # create initial state distribution
-    totmol = N * 10
-    totA, totB = floor(Int, totmol/2), floor(Int, totmol/2)
-    totEA, totEB = floor(Int, 0.1*N), floor(Int, 0.1*N)
+    totmol = 10N
+    totA, totB = floor(Int, 0.5totmol), floor(Int, 0.5totmol)
+    totEA, totEB = floor(Int, 0.1N), floor(Int, 0.1N)
     memEA = floor(Int, totEA*(theta/(kAd_th/kAa_th))*(totA/Stot)/(1+theta/(kAd_th/kAa_th)*totA/Stot))
     memEB = floor(Int, totEB*(theta/(kBd_th/kBa_th))*(totB/Stot)/(1+theta/(kBd_th/kBa_th)*totB/Stot))
     cytoEA, cytoEB = totEA - memEA, totEB - memEB

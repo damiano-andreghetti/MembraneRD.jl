@@ -17,7 +17,7 @@ function build_queues(M)
 end
 
 function run_RD!(state::State, M::Model, T; 
-        stats = (_, _)->nothing, 
+        stats = (_...,)->nothing, 
         rng = Random.default_rng(),
         queues = build_queues(M))
 
