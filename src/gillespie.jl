@@ -3,15 +3,16 @@
 function build_queues(M)
     N = nsites(M)
     Qn = Tuple(StaticExponentialQueue(N) for _ in M.species)
-    Qcat = Tuple(ExponentialQueue(N) for _ in M.cat)
-    Qrea = Tuple(ExponentialQueue(N) for _ in M.rea)
+    Qcat = Tuple(StaticExponentialQueue(N) for _ in M.cat)
+    Qrea = Tuple(StaticExponentialQueue(N) for r in M.rea)
     Qatt = Tuple(Qn[m1]*0.0 for (m,m1,ka) in M.att)
     Q = NestedQueue(
         ((evdif,m) => Qn[m] * d for (m,d) in M.dif)...,
         ((evatt,m) => q for ((m,_,_),q) in zip(M.att, Qatt))...,
         ((evdet,m) => Qn[m] * kd for (m,kd) in M.det)...,
         ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(eachindex(M.cat),M.cat, Qcat))...,
-        ((evrea,r) => q*k for (r,(_,_,k),q) in zip(eachindex(M.rea), M.rea, Qrea))...
+        # reactions with only 1 substrate are treated differently because they don't need an extra queue
+        ((evrea,r) => (length(s) == 1 ? Qn[only(s)] : q)*k for (r,(s,p,k),q) in zip(eachindex(M.rea), M.rea, Qrea))...
        )
     (Qn, Qcat, Qrea, Qatt, Q)
 end
@@ -28,7 +29,9 @@ function run_RD!(state::State, M::Model, T;
             @inbounds q[i] = state.membrane[i,e]  / (1 + km/state.membrane[i,s])
         end
         for ((s,), q) in zip(M.rea, Qrea)
-            @inbounds q[i] = prod(state.membrane[i,m] for m in s)
+            if length(s) > 1
+                @inbounds q[i] = prod(state.membrane[i,m] for m in s)
+            end
         end
         for ((m,_,ka),q) in zip(M.att, Qatt)
             @inbounds q.f[] = state.cytosol[m]*ka
