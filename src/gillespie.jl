@@ -1,218 +1,86 @@
-function run_RD!(s::State, M::Model, T; 
-        stats = (_, _)->nothing, 
-        rng = Random.default_rng())
+@enum Event evdif evatt evdet evcat evrea evend
 
-    QA,QB,QEA,QEB,QcatA,QcatB = (ExponentialQueue(length(M)) for _ in 1:6)
-    QattEA = QA * 0.0
-    QattEB = QB * 0.0
-
-    function update(i)
-        QA[i] = s.nA[i]
-        QB[i] = s.nB[i]
-        QcatB[i] = s.nEB[i] * s.nA[i] / (s.nA[i] + M.KMMB)
-        QcatA[i] = s.nEA[i] * s.nB[i] / (s.nB[i] + M.KMMA)
-        QEA[i] = s.nEA[i]
-        QEB[i] = s.nEB[i]
-        QattEA.f[] = s.cytoEA[] * M.kAa
-        QattEB.f[] = s.cytoEB[] * M.kBa
-    end
-
-    foreach(update, 1:length(M))
-
-    #arrival is chosen uniformly between its neighbours
-    rand_neighbor(i) = rand(rng, neighbors(M.g, i))
-
+function build_queues(M)
+    N = nsites(M)
+    Qn = Tuple(StaticExponentialQueue(N) for _ in M.species)
+    Qcat = Tuple(StaticExponentialQueue(N) for _ in M.cat)
+    Qrea = Tuple(StaticExponentialQueue(N) for r in M.rea)
+    Qatt = Tuple(Qn[m1]*0.0 for (m,m1,ka) in M.att)
     Q = NestedQueue(
-            :difA => QA * M.dA,
-            :difB => QB * M.dB,
-            :catA => QcatA * M.kAc,
-            :catB => QcatB * M.kBc,
-            :attEA => QattEA,
-            :attEB => QattEB,
-            :difEA => QEA * M.dEA,
-            :difEB => QEB * M.dEB,
-            :detEA => QEA * M.kAd,
-            :detEB => QEB * M.kBd,
-			:spontB => QA * M.kBs,
-			:spontA => QB * M.kAs
-        )
-
-    println("starting simulation, $(length(Q)) events in the queue")
-
-    t::Float64 = 0.0
-    while !isempty(Q)
-        (ev, i), dt = peek(Q; rng)
-        t += dt
-        t > T && break #reached end time for simulation
-		((sum(QA.acc) ==0 && sum(QcatA.acc)==0 && M.kAs==0)|| (sum(QB.acc)==0 && sum(QcatB.acc)==0 && M.kBs==0)) && break #reached adsorbing tate 
-        stats(t, s)
-        @inbounds if ev === :difA #diffusion of specie A
-            j = rand_neighbor(i)
-            s.nA[i] -= 1
-            s.nA[j] += 1
-            update(i)
-            update(j)
-        elseif ev === :difB #diffusion of specie B
-            j = rand_neighbor(i)
-            s.nB[i] -= 1
-            s.nB[j] += 1
-            update(i)
-            update(j)
-        elseif ev === :catA #B+EA->A+EA
-            s.nB[i] -= 1
-            s.nA[i] += 1
-            update(i)
-        elseif ev === :catB #A+EB->B+EB
-            s.nA[i] -= 1
-            s.nB[i] += 1
-            update(i)
-        elseif ev === :attEA #attachment of EA from cytosol
-            s.cytoEA[] -= 1
-            s.nEA[i] += 1
-            update(i)
-        elseif ev === :attEB #attachment of EB from cytosol
-            s.cytoEB[] -= 1
-            s.nEB[i] += 1
-            update(i)
-        elseif ev === :detEA #detachment of EA
-            s.nEA[i] -= 1
-            s.cytoEA[] += 1
-            update(i)
-        elseif ev === :detEB #detachment of EB
-            s.nEB[i] -= 1
-            s.cytoEB[] += 1
-            update(i)
-        elseif ev === :difEA #diffusion of EA
-            j = rand_neighbor(i)
-            s.nEA[i] -= 1
-            s.nEA[j] += 1
-            update(i)
-            update(j)
-        elseif ev === :difEB #diffusion of EB
-            j = rand_neighbor(i)
-            s.nEB[i] -= 1
-            s.nEB[j] += 1
-            update(i)
-            update(j)
-		elseif ev == :spontA #spontaneous interconversion B->A
-			s.nA[i]+=1
-			s.nB[i]-=1
-			update(i)
-		elseif ev == :spontB #spontaneous interconversion A->B
-			s.nB[i]+=1
-			s.nA[i]-=1
-			update(i)
-        end
-    end
-	stats(T, s)
+        ((evdif,m) => Qn[m] * d for (m,d) in M.dif)...,
+        ((evatt,m) => q for ((m,_,_),q) in zip(M.att, Qatt))...,
+        ((evdet,m) => Qn[m] * kd for (m,kd) in M.det)...,
+        ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(eachindex(M.cat),M.cat, Qcat))...,
+        # reactions with only 1 substrate are treated differently because they don't need an extra queue
+        ((evrea,r) => (length(s) == 1 ? Qn[only(s)] : q)*k for (r,(s,p,k),q) in zip(eachindex(M.rea), M.rea, Qrea))...
+       )
+    (Qn, Qcat, Qrea, Qatt, Q)
 end
 
+function run_RD!(state::State, M::Model, T; 
+        stats = (_...,)->nothing, 
+        rng = Random.default_rng(),
+        queues = build_queues(M))
 
-function run_RDcr!(s::State, M::Model, T; 
-        stats = (_, _, _, _)->nothing, 
-        rng = Random.default_rng())
+    Qn, Qcat, Qrea, Qatt, Q = queues
 
-    QA,QB,QEA,QEB,QcatA,QcatB = (ExponentialQueue(length(M)) for _ in 1:6)
-    QattEA = QA * 0.0
-    QattEB = QB * 0.0
-
-    function update(i)
-        QA[i] = s.nA[i]
-        QB[i] = s.nB[i]
-        QcatB[i] = s.nEB[i] * s.nA[i] / (s.nA[i] + M.KMMB)
-        QcatA[i] = s.nEA[i] * s.nB[i] / (s.nB[i] + M.KMMA)
-        QEA[i] = s.nEA[i]
-        QEB[i] = s.nEB[i]
-        QattEA.f[] = s.cytoEA[] * M.kAa
-        QattEB.f[] = s.cytoEB[] * M.kBa
+    function update(i::Int)
+        for ((e,s,_,_,km),q) in zip(M.cat, Qcat)
+            @inbounds q[i] = state.membrane[i,e]  / (1 + km/state.membrane[i,s])
+        end
+        for ((s,), q) in zip(M.rea, Qrea)
+            if length(s) > 1
+                @inbounds q[i] = prod(state.membrane[i,m] for m in s)
+            end
+        end
+        for ((m,_,ka),q) in zip(M.att, Qatt)
+            @inbounds q.f[] = state.cytosol[m]*ka
+        end
+        for (m,q) in pairs(Qn)
+            @inbounds q[i] = state.membrane[i,m]
+        end
     end
 
-    foreach(update, 1:length(M))
-
-    #arrival is chosen uniformly between its neighbours
-    rand_neighbor(i) = rand(rng, neighbors(M.g, i))
-
-    Q = NestedQueue(
-            :difA => QA * M.dA,
-            :difB => QB * M.dB,
-            :catA => QcatA * M.kAc,
-            :catB => QcatB * M.kBc,
-            :attEA => QattEA,
-            :attEB => QattEB,
-            :difEA => QEA * M.dEA,
-            :difEB => QEB * M.dEB,
-            :detEA => QEA * M.kAd,
-            :detEB => QEB * M.kBd,
-			:spontB => QA * M.kBs,
-			:spontA => QB * M.kAs
-        )
-
+    foreach(update, 1:nsites(M))
+            
     println("starting simulation, $(length(Q)) events in the queue")
 
     t::Float64 = 0.0
     while !isempty(Q)
-        (ev, i), dt = peek(Q; rng)
+        ((ev,m),i),dt = peek(Q; rng)
         t += dt
-        t > T && break #reached end time for simulation
-		((sum(QA.acc) ==0 && sum(QcatA.acc)==0 && M.kAs==0)|| (sum(QB.acc)==0 && sum(QcatB.acc)==0 && M.kBs==0)) && break #reached adsorbing tate 
-        stats(t, s, ev, i)
-        @inbounds if ev === :difA #diffusion of specie A
-            j = rand_neighbor(i)
-            s.nA[i] -= 1
-            s.nA[j] += 1
+        t > T && break # reached end time of simulation
+        stats(t, state, ev, m, i)
+        @inbounds if ev == evdif # diffusion
+            #arrival is chosen uniformly between its neighbours
+            j = rand(rng, neighbors(M.G, i))
+            state.membrane[i,m] -= 1
+            state.membrane[j,m] += 1
             update(i)
             update(j)
-        elseif ev === :difB #diffusion of specie B
-            j = rand_neighbor(i)
-            s.nB[i] -= 1
-            s.nB[j] += 1
+        elseif ev == evcat # catalytic reaction
+            _, s, p = M.cat[m]
+            state.membrane[i,s] -= 1
+            state.membrane[i,p] += 1
             update(i)
-            update(j)
-        elseif ev === :catA #B+EA->A+EA
-            s.nB[i] -= 1
-            s.nA[i] += 1
+        elseif ev == evatt # attachment to membrane
+            state.cytosol[m] -= 1
+            state.membrane[i,m] += 1
             update(i)
-        elseif ev === :catB #A+EB->B+EB
-            s.nA[i] -= 1
-            s.nB[i] += 1
+        elseif ev == evdet # detachment from membrane
+            state.membrane[i,m] -= 1
+            state.cytosol[m] += 1
             update(i)
-        elseif ev === :attEA #attachment of EA from cytosol
-            s.cytoEA[] -= 1
-            s.nEA[i] += 1
+        else # ev == evrea # reaction
+            s, p = M.rea[m]
+            for m in s
+                state.membrane[i,m] -= 1
+            end
+            for m in p
+                state.membrane[i,m] += 1
+            end
             update(i)
-        elseif ev === :attEB #attachment of EB from cytosol
-            s.cytoEB[] -= 1
-            s.nEB[i] += 1
-            update(i)
-        elseif ev === :detEA #detachment of EA
-            s.nEA[i] -= 1
-            s.cytoEA[] += 1
-            update(i)
-        elseif ev === :detEB #detachment of EB
-            s.nEB[i] -= 1
-            s.cytoEB[] += 1
-            update(i)
-        elseif ev === :difEA #diffusion of EA
-            j = rand_neighbor(i)
-            s.nEA[i] -= 1
-            s.nEA[j] += 1
-            update(i)
-            update(j)
-        elseif ev === :difEB #diffusion of EB
-            j = rand_neighbor(i)
-            s.nEB[i] -= 1
-            s.nEB[j] += 1
-            update(i)
-            update(j)
-		elseif ev == :spontA #spontaneous interconversion B->A
-			s.nA[i]+=1
-			s.nB[i]-=1
-			update(i)
-		elseif ev == :spontB #spontaneous interconversion A->B
-			s.nB[i]+=1
-			s.nA[i]-=1
-			update(i)
         end
     end
-	stats(T, s, :finish, 1)
+    stats(T, state, evend, 0, 0)
 end

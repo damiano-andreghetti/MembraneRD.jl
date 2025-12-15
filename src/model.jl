@@ -1,22 +1,51 @@
-struct Model{G}
-    g::G
-    posx::Vector{Float64}
-    posy::Vector{Float64}
-    dA::Float64
-    dB::Float64
-    dEA::Float64
-    dEB::Float64
-    kAc::Float64
-    kBc::Float64
-    kAa::Float64
-    kAd::Float64
-    kBa::Float64
-    kBd::Float64
-	kAs::Float64
-	kBs::Float64
-    KMMA::Float64
-    KMMB::Float64
-    rho_0::Float64
+Base.@kwdef struct Model{GT, S, T, L0, L1, L2, L3, L4}
+    species::S
+    G::GT
+    rea::L0 = ()
+    cat::L1 = ()
+    att::L2 = ()
+    det::L3 = ()
+    dif::L4 = ()
+    rho_0::T
 end
 
-Base.length(M::Model) = nv(M.g)
+
+nspecies(M::Model) = length(M.species)
+
+nsites(M::Model) = nv(M.G)
+
+
+macro species(ex...)
+    return quote
+        $(Expr(:tuple, (esc(x) for x in ex)...)) = Iterators.countfrom(1);
+        $(Expr(:tuple, (esc(x) for x in ex)...))
+    end
+end
+
+
+macro catalytic(ex...)
+    @assert length(ex) == 2
+    @assert ex[1] isa Expr
+    constants = ex[1].args
+    @assert length(ex[2].args) == 3
+    ex1, ex2 = ex[2].args[2:3]
+    substrates = ex1 isa Symbol ? ex1 : ex1.args[2:end] 
+    products = ex2 isa Symbol ?  ex2 : ex2.args[2:end]
+    @assert length(products) == 2 && products[1] == substrates[1]
+    :($((esc(x) for x in substrates)...), 
+        $((esc(x) for x in products[2:end])...),
+        $((esc(x) for x in constants)...))
+end
+
+macro reaction(ex...)
+    @assert length(ex) == 2
+    constants = ex[1]
+    @assert length(constants) == 1
+    @assert length(ex[2].args) == 3
+    ex1, ex2 = ex[2].args[2:3]
+    substrates = ex1 isa Symbol ? ex1 : ex1.args[2:end] 
+    products = ex2 isa Symbol ?  ex2 : ex2.args[2:end]
+    :($(Expr(:tuple, (esc(x) for x in substrates)...)), 
+        $(Expr(:tuple, (esc(x) for x in products)...)),
+        $(ex[1]))
+end

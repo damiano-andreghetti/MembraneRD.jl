@@ -1,14 +1,18 @@
 module MembraneRD
 
-using ExponentialQueues, Random, ProgressMeter, Colors, Compose
+using ExponentialQueues, Random
 
-export Model, State, run_RD!, run_RDcr!, gen_hex_lattice, gen_rect_lattice,
-    ProgressShower, TimeFilter, Plotter
+export Model, State, run_RD!, gen_hex_lattice, gen_rect_lattice,
+    nspecies, nsites, @species, @reaction, @catalytic
+export Event, evdif, evatt, evdet, evcat, evrea
+
+export nv
 
 include("lattice.jl")
 include("model.jl")
 include("state.jl")
 include("gillespie.jl")
-include("filters.jl")
+include("filters/Filters.jl")
 
-end
+
+end # module MembraneRD

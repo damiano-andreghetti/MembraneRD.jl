@@ -1,31 +1,15 @@
-struct State{T}
-	nA::Vector{T}
-	nB::Vector{T}
-	nEA::Vector{T}
-	nEB::Vector{T}
-	cytoEA::Base.RefValue{T}
-	cytoEB::Base.RefValue{T}
+struct State
+	membrane::Matrix{Int}
+	cytosol::Vector{Int}
 end
 
-
-function State(M::Model, totA::Int, totB::Int, memEA::Int, memEB::Int, cytoEA::Int, cytoEB::Int; rng = Random.default_rng())
-    N = length(M)
-    nA, nB, nEA, nEB = fill(0,N), fill(0,N), fill(0,N), fill(0,N)
-
-	for _ in 1:totA
-		nA[rand(rng, 1:N)]+=1
-	end
-	for _ in 1:totB
-		nB[rand(rng, 1:N)]+=1
-	end
-    for _ in 1:memEA
-		nEA[rand(rng, 1:N)]+=1
-	end
-	for _ in 1:memEB
-		nEB[rand(rng, 1:N)]+=1
-	end
-    State(nA, nB, nEA, nEB, Ref(cytoEA), Ref(cytoEB))
+function State(M::Model, totmembrane::Vector, cytosol::Vector; rng = Random.default_rng())
+    Nspecies, Nsites = nspecies(M), nsites(M)
+    membrane = zeros(Nsites, Nspecies)
+    for m in 1:Nspecies
+        for _ in 1:totmembrane[m]
+            membrane[rand(rng, 1:Nsites), m] += 1
+        end
+    end
+    State(membrane, cytosol)
 end
-
-Base.length(s::State) = length(s.nEA)
-
