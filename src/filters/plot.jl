@@ -55,7 +55,7 @@ Converts a `Context` object into a raster image.
 """
 function raster(c)
     io = IOBuffer()
-    Compose.draw(PNG(io; emit_on_finish=false), c)
+    draw(PNG(io; emit_on_finish=false), c)
     A = Images.load(io)
     m, n = 2 .* (size(A) .÷ 2)
     #crop to even dimensions and N0f8 colorspace
