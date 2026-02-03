@@ -1,5 +1,5 @@
 using ColorVectorSpace, Images, Colors
-import Compose: polygon, context, fill, mm, set_default_graphic_size, compose, draw
+import Compose: polygon, context, fill, mm, set_default_graphic_size, compose
 import Cairo, Fontconfig
 
 function hexagon(x, y, r)
@@ -55,7 +55,7 @@ Converts a `Context` object into a raster image.
 """
 function raster(c)
     io = IOBuffer()
-    draw(PNG(io; emit_on_finish=false), c)
+    Compose.draw(PNG(io; emit_on_finish=false), c)
     A = Images.load(io)
     m, n = 2 .* (size(A) .÷ 2)
     #crop to even dimensions and N0f8 colorspace
