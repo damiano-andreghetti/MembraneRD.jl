@@ -6,16 +6,17 @@ function build_queues(M)
     Qcat = Tuple(StaticExponentialQueue(N) for _ in M.cat)
     Qrea = Tuple(StaticExponentialQueue(N) for r in M.rea)
     Qatt = Tuple(Qn[m1]*0.0 for (m,m1,ka) in M.att)
-    Q = NestedQueue(
+    Q = NestedQueue((
         ((evdif,m) => Qn[m] * d for (m,d) in M.dif)...,
         ((evatt,m) => q for ((m,_,_),q) in zip(M.att, Qatt))...,
         ((evdet,m) => Qn[m] * kd for (m,kd) in M.det)...,
         ((evcat,r) => q*kc for (r,(_,_,_,kc,_),q) in zip(eachindex(M.cat),M.cat, Qcat))...,
         # reactions with only 1 substrate are treated differently because they don't need an extra queue
-        ((evrea,r) => (length(s) == 1 ? Qn[only(s)] : q)*k for (r,(s,p,k),q) in zip(eachindex(M.rea), M.rea, Qrea))...
-       )
+        ((evrea,r) => (length(s) == 1 ? Qn[only(s)] : q)*k for (r,(s,p,k),q) in zip(eachindex(M.rea), M.rea, Qrea))...,
+       ))
     (Qn, Qcat, Qrea, Qatt, Q)
 end
+
 
 function run_RD!(state::State, M::Model, T; 
         stats = (_...,)->nothing, 
